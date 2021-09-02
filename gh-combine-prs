@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -euo pipefail
+
+COMBINED_BRANCH=combined-pr-branch
+BODY_FILE=/tmp/.combined-pr-body.md
+LIMIT=50
+
+echo -n > $BODY_FILE
+
+git fetch
+git checkout master
+git pull --ff-only
+
+git branch -D combined-pr-branch || true
+git checkout -b $COMBINED_BRANCH
+
+echo $'Combining multiple dependencies PRs into one:\n\n' > $BODY_FILE
+
+count=0
+gh pr list --search "author:app/dependabot" --limit 100 --json headRefName,number | jq -r ".[] | [.number,.headRefName] | @tsv" | while read -r NUMBER HEADREF
+do
+    if [[ $(gh pr checks "$NUMBER" | cut -d$'\t' -f2 | grep -E "fail|pending" -c) -gt 0 ]]; then
+        echo "Checks are not all passing - skipping PR #$NUMBER"
+        continue
+    fi
+
+    echo "Trying to merge $HEADREF into $COMBINED_BRANCH"
+    if [[ ! $(git merge "origin/$HEADREF" --no-edit) ]]; then
+        echo "Unable to merge $HEADREF - skipping PR #$NUMBER"
+        git merge --abort
+        continue
+    fi
+    echo "Merged $HEADREF into $COMBINED_BRANCH"
+
+    DESCRIPTION=$(gh pr view "$NUMBER" --json title,author,number --template '{{.title}} (#{{.number}}) @{{.author.login}}')
+    echo "* ${DESCRIPTION}" >> $BODY_FILE
+    cat $BODY_FILE
+
+    ((count=count+1))
+    if [[ $count == "$LIMIT" ]]; then
+        echo "Hit limit of $LIMIT - no more PRs will be added"
+        break
+    fi
+done
+
+echo "Finished merging - press any key to create PR or escape to abort"
+while read -r -n1 key; do
+    if [[ $key == $'\e' ]]; then
+        exit
+    else
+        break
+    fi
+done
+
+echo "Creating PR if one does not exist"
+gh pr create --title "Combined dependencies PR" --body-file $BODY_FILE --label dependencies
+
