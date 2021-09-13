@@ -2,57 +2,132 @@
 
 set -euo pipefail
 
+help() {
+	cat << EOF
+
+Usage: gh combine-prs --query "QUERY"
+	Combines multiple PRs into one.
+
+	Required arguments:
+		--query "QUERY"
+				sets the query used to find combinable PRs.
+				e.g. --query "author:app/dependabot"
+				to combine Dependabot PRs
+	
+	Optional arguments:
+		--limit LIMIT
+				sets the maximum number of PRs that will be combined.
+				Defaults to 50
+
+EOF
+}
+
+confirm() {
+	while read -r -n1 key; do
+		if [[ $key == $'\e' ]]; then
+			exit 0
+		else
+			break
+		fi
+	done
+}
+
+LIMIT=50
+QUERY=""
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-h|--help)
+		help
+		exit 0
+		;;
+	--limit)
+		shift
+		LIMIT=$1
+		;;
+	--query)
+		shift
+		QUERY=$1
+		;;
+	*)
+		help >&2
+		exit 1
+		;;
+	esac
+	shift
+done
+
+DEFAULT_BRANCH=$(gh api /repos/:owner/:repo --jq '.default_branch')
 COMBINED_BRANCH=combined-pr-branch
 BODY_FILE=/tmp/.combined-pr-body.md
-LIMIT=50
 
-echo -n > $BODY_FILE
+if [[ -z "${QUERY}" ]]; then
+	help
+	echo "Error: --query is required; e.g. --query \"author:app/dependabot\""
+	exit 1
+fi
+
+cat <<- EOF > $BODY_FILE
+	Combining multiple dependencies PRs into one.
+
+	<details>
+	<summary>Instructions for merging</summary>
+
+	* **Use a merge commit**, so that GitHub will mark all original PRs as merged.
+	* If your repository does not have merge commits enabled, please temporarily enable them in settings. Tick \`Allow merge commits\` in the repository settings.
+	* When ready, merge this PR using \`Create a merge commit\`.
+
+	</details>
+
+	## Combined PRs
+
+EOF
+
+exit 1
+
+echo "The following PRs will be evaluated for inclusion:"
+gh pr list --search "${QUERY}" --limit "${LIMIT}"
+echo "Press any key to continue or escape to abort"
+confirm
 
 git fetch
-git checkout master
+git checkout "${DEFAULT_BRANCH}"
 git pull --ff-only
 
 git branch -D combined-pr-branch || true
 git checkout -b $COMBINED_BRANCH
 
-echo $'Combining multiple dependencies PRs into one:\n\n' > $BODY_FILE
-
 count=0
-gh pr list --search "author:app/dependabot" --limit 100 --json headRefName,number | jq -r ".[] | [.number,.headRefName] | @tsv" | while read -r NUMBER HEADREF
+gh pr list --search "${QUERY}" --limit "${LIMIT}" --json headRefName,number | jq -r ".[] | [.number,.headRefName] | @tsv" | while read -r NUMBER HEADREF
 do
-    if [[ $(gh pr checks "$NUMBER" | cut -d$'\t' -f2 | grep -E "fail|pending" -c) -gt 0 ]]; then
-        echo "Checks are not all passing - skipping PR #$NUMBER"
-        continue
-    fi
+	if [[ $(gh pr checks "$NUMBER" | cut -d$'\t' -f2 | grep -E "fail|pending" -c) -gt 0 ]]; then
+		echo "Not all checks are passing - skipping PR #$NUMBER"
+		continue
+	fi
 
-    echo "Trying to merge $HEADREF into $COMBINED_BRANCH"
-    if [[ ! $(git merge "origin/$HEADREF" --no-edit) ]]; then
-        echo "Unable to merge $HEADREF - skipping PR #$NUMBER"
-        git merge --abort
-        continue
-    fi
-    echo "Merged $HEADREF into $COMBINED_BRANCH"
+	echo "Trying to merge $HEADREF into $COMBINED_BRANCH"
+	if [[ ! $(git merge "origin/$HEADREF" --no-edit) ]]; then
+		echo "Unable to merge $HEADREF - skipping PR #$NUMBER"
+		git merge --abort
+		continue
+	fi
+	echo "Merged $HEADREF (#$NUMBER) into $COMBINED_BRANCH"
 
-    DESCRIPTION=$(gh pr view "$NUMBER" --json title,author,number --template '{{.title}} (#{{.number}}) @{{.author.login}}')
-    echo "* ${DESCRIPTION}" >> $BODY_FILE
-    cat $BODY_FILE
+	DESCRIPTION=$(gh pr view "$NUMBER" --json title,author,number --template '{{.title}} (#{{.number}}) @{{.author.login}}')
+	echo "* ${DESCRIPTION}" >> $BODY_FILE
 
-    ((count=count+1))
-    if [[ $count == "$LIMIT" ]]; then
-        echo "Hit limit of $LIMIT - no more PRs will be added"
-        break
-    fi
+	((count=count+1))
+	if [[ $count == "$LIMIT" ]]; then
+		echo "Hit limit of $LIMIT - no more PRs will be added"
+		break
+	fi
 done
 
-echo "Finished merging - press any key to create PR or escape to abort"
-while read -r -n1 key; do
-    if [[ $key == $'\e' ]]; then
-        exit
-    else
-        break
-    fi
-done
+echo -e "Preview of PR:\n\n"
+cat $BODY_FILE
 
-echo "Creating PR if one does not exist"
+echo -e "\n\nFinished merging - press any key to create PR or escape to abort"
+confirm
+
+echo "Creating PR"
 gh pr create --title "Combined dependencies PR" --body-file $BODY_FILE --label dependencies
 
