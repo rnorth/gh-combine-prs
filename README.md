@@ -1,7 +1,7 @@
 # gh-combine-prs
 
-Combines multiple PRs into one. 
-Intended for use in repositories that receive many PRs that can be merged simultaneously, e.g. trivial Dependabot version bump PRs.
+This is an extension for [GitHub CLI](https://cli.github.com/) that combines multiple PRs into one. 
+It is intended for use in repositories that receive many PRs that can be merged simultaneously, e.g. trivial Dependabot version bump PRs.
 
 The tool will attempt to create one PR that contains all PRs that:
 
@@ -21,8 +21,10 @@ gh extension install rnorth/gh-combine-prs
 ```
 
 ## Usage
-	
+
 ```
+cd $DIRECTORY_OF_YOUR_REPO
+
 gh combine-prs --query "QUERY"
 ```
 
