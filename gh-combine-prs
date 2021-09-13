@@ -82,8 +82,6 @@ cat <<- EOF > $BODY_FILE
 
 EOF
 
-exit 1
-
 echo "The following PRs will be evaluated for inclusion:"
 gh pr list --search "${QUERY}" --limit "${LIMIT}"
 echo "Press any key to continue or escape to abort"
