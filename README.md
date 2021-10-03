@@ -11,10 +11,12 @@ The tool will attempt to create one PR that contains all PRs that:
 
 This tool does not automerge into the `master`/`main` branch - it just attempts to create one unified PR for review and automated checks to run against.
 
-When merging the combined PR, is recommended that a Merge Commit be created. 
-This allows GitHub to automatically detect that all of the original combined PRs have been merged, so that their state can be set correctly.
+*Note: When you merge the combined PR, it is recommended that you create a Merge Commit. 
+This allows GitHub to automatically detect that all of the original combined PRs have been merged, so that their state can be set correctly.*
 
 ## Installation
+
+Assuming [GitHub CLI](https://cli.github.com/) is already installed and authenticated:
 
 ```
 gh extension install rnorth/gh-combine-prs
