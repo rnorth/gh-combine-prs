@@ -16,7 +16,11 @@ This allows GitHub to automatically detect that all of the original combined PRs
 
 ## Installation
 
-Assuming [GitHub CLI](https://cli.github.com/) is already installed and authenticated:
+Prerequisites:
+ * [GitHub CLI](https://cli.github.com/) is already installed and authenticated
+ * [`jq`](https://stedolan.github.io/jq/) is installed
+
+To install this extension:
 
 ```
 gh extension install rnorth/gh-combine-prs
