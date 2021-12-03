@@ -13,11 +13,13 @@ Usage: gh combine-prs --query "QUERY"
 				sets the query used to find combinable PRs.
 				e.g. --query "author:app/dependabot"
 				to combine Dependabot PRs
-	
 	Optional arguments:
 		--limit LIMIT
 				sets the maximum number of PRs that will be combined.
 				Defaults to 50
+		--skip-pr-check
+				if set, will combine matching PRs even if they are not passing checks.
+				Defaults to false when not specified
 
 EOF
 }
@@ -34,6 +36,7 @@ confirm() {
 
 LIMIT=50
 QUERY=""
+SKIP_PR_CHECK="false"
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-h|--help)
@@ -47,6 +50,9 @@ while [ $# -gt 0 ]; do
 	--query)
 		shift
 		QUERY=$1
+		;;
+	--skip-pr-check)
+		SKIP_PR_CHECK="true"
 		;;
 	*)
 		help >&2
@@ -84,6 +90,9 @@ EOF
 
 echo "The following PRs will be evaluated for inclusion:"
 gh pr list --search "${QUERY}" --limit "${LIMIT}"
+if [[ "${SKIP_PR_CHECK}" == "true" ]]; then
+	echo -e "\nAction status checks for PRs will be skipped"
+fi
 echo "Press any key to continue or escape to abort"
 confirm
 
@@ -97,7 +106,7 @@ git checkout -b $COMBINED_BRANCH
 count=0
 gh pr list --search "${QUERY}" --limit "${LIMIT}" --json headRefName,number | jq -r ".[] | [.number,.headRefName] | @tsv" | while read -r NUMBER HEADREF
 do
-	if [[ $(gh pr checks "$NUMBER" | cut -d$'\t' -f2 | grep -E "fail|pending" -c) -gt 0 ]]; then
+	if [[ "${SKIP_PR_CHECK}" == "false" ]] && [[ $(gh pr checks "$NUMBER" | cut -d$'\t' -f2 | grep -E "fail|pending" -c) -gt 0 ]]; then
 		echo "Not all checks are passing - skipping PR #$NUMBER"
 		continue
 	fi
