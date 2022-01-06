@@ -41,6 +41,10 @@ gh combine-prs --query "QUERY"
             to combine Dependabot PRs
 
 ### Optional arguments
+    --selected-pr-numbers COMMA,SEPARATED,LIST
+            if set, will only work on PRs with the selected numbers.
+            e.g. --selected-pr-numbers 42,13,78
+            Defaults to selecting every PR matching the QUERY
     --limit LIMIT
             sets the maximum number of PRs that will be combined.
             Defaults to 50

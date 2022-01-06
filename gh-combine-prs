@@ -14,6 +14,10 @@ Usage: gh combine-prs --query "QUERY"
 				e.g. --query "author:app/dependabot"
 				to combine Dependabot PRs
 	Optional arguments:
+		--selected-pr-numbers COMMA,SEPARATED,LIST
+				if set, will only work on PRs with the selected numbers.
+				e.g. --selected-pr-numbers 42,13,78
+				Defaults to selecting every PR matching the QUERY
 		--limit LIMIT
 				sets the maximum number of PRs that will be combined.
 				Defaults to 50
@@ -37,11 +41,16 @@ confirm() {
 LIMIT=50
 QUERY=""
 SKIP_PR_CHECK="false"
+SELECTED_PR_NUMBERS=
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-h|--help)
 		help
 		exit 0
+		;;
+	--selected-pr-numbers)
+		shift
+		SELECTED_PR_NUMBERS=$1
 		;;
 	--limit)
 		shift
@@ -93,6 +102,11 @@ gh pr list --search "${QUERY}" --limit "${LIMIT}"
 if [[ "${SKIP_PR_CHECK}" == "true" ]]; then
 	echo -e "\nAction status checks for PRs will be skipped"
 fi
+JQ_FILTER=".[]"
+if [[ -n "${SELECTED_PR_NUMBERS}" ]]; then
+	echo -e "\nOnly the following PRs will be selected: $SELECTED_PR_NUMBERS"
+	JQ_FILTER="$JQ_FILTER | select(.number == ($SELECTED_PR_NUMBERS))"
+fi
 echo "Press any key to continue or escape to abort"
 confirm
 
@@ -104,7 +118,7 @@ git branch -D combined-pr-branch || true
 git checkout -b $COMBINED_BRANCH
 
 count=0
-gh pr list --search "${QUERY}" --limit "${LIMIT}" --json headRefName,number | jq -r ".[] | [.number,.headRefName] | @tsv" | while read -r NUMBER HEADREF
+gh pr list --search "${QUERY}" --limit "${LIMIT}" --json headRefName,number | jq -r "$JQ_FILTER | [.number,.headRefName] | @tsv" | while read -r NUMBER HEADREF
 do
 	if [[ "${SKIP_PR_CHECK}" == "false" ]] && [[ $(gh pr checks "$NUMBER" | cut -d$'\t' -f2 | grep -E "fail|pending" -c) -gt 0 ]]; then
 		echo "Not all checks are passing - skipping PR #$NUMBER"
@@ -137,4 +151,3 @@ confirm
 
 echo "Creating PR"
 gh pr create --title "Combined dependencies PR" --body-file $BODY_FILE --label dependencies
-
