@@ -114,8 +114,8 @@ git fetch
 git checkout "${DEFAULT_BRANCH}"
 git pull --ff-only
 
-git branch -D combined-pr-branch || true
-git checkout -b $COMBINED_BRANCH
+git branch -D "$COMBINED_BRANCH" || true
+git checkout -b "$COMBINED_BRANCH"
 
 count=0
 gh pr list --search "${QUERY}" --limit "${LIMIT}" --json headRefName,number | jq -r "$JQ_FILTER | [.number,.headRefName] | @tsv" | while read -r NUMBER HEADREF
