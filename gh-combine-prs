@@ -24,6 +24,10 @@ Usage: gh combine-prs --query "QUERY"
 		--skip-pr-check
 				if set, will combine matching PRs even if they are not passing checks.
 				Defaults to false when not specified
+				
+		--pr-labels
+		                list of tags to assign to the PR
+				Defaults to none.
 
 EOF
 }
@@ -42,6 +46,7 @@ LIMIT=50
 QUERY=""
 SKIP_PR_CHECK="false"
 SELECTED_PR_NUMBERS=
+PR_LABELS=
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-h|--help)
@@ -63,6 +68,9 @@ while [ $# -gt 0 ]; do
 	--skip-pr-check)
 		SKIP_PR_CHECK="true"
 		;;
+	--pr-tags
+		shift
+		PR_LABELS=$1
 	*)
 		help >&2
 		exit 1
@@ -72,7 +80,7 @@ while [ $# -gt 0 ]; do
 done
 
 DEFAULT_BRANCH=$(gh api /repos/:owner/:repo --jq '.default_branch')
-COMBINED_BRANCH=combined-pr-branch
+COMBINED_BRANCH=pr-train-$(date +%s)
 BODY_FILE=/tmp/.combined-pr-body.md
 
 if [[ -z "${QUERY}" ]]; then
@@ -82,16 +90,7 @@ if [[ -z "${QUERY}" ]]; then
 fi
 
 cat <<- EOF > $BODY_FILE
-	Combining multiple dependencies PRs into one.
-
-	<details>
-	<summary>Instructions for merging</summary>
-
-	* **Use a merge commit**, so that GitHub will mark all original PRs as merged.
-	* If your repository does not have merge commits enabled, please temporarily enable them in settings. Tick \`Allow merge commits\` in the repository settings.
-	* When ready, merge this PR using \`Create a merge commit\`.
-
-	</details>
+	Combining multiple PRs into one.
 
 	## Combined PRs
 
@@ -150,4 +149,4 @@ echo -e "\n\nFinished merging - press any key to create PR or escape to abort"
 confirm
 
 echo "Creating PR"
-gh pr create --title "Combined dependencies PR" --body-file $BODY_FILE --label dependencies
+gh pr create --title "Combined PR" --body-file $BODY_FILE --label "$PR_LABELS"
