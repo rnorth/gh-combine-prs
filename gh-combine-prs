@@ -25,7 +25,7 @@ Usage: gh combine-prs --query "QUERY"
 				if set, will combine matching PRs even if they are not passing checks.
 				Defaults to false when not specified
 				
-		--pr-labels
+		--pr-labels COMMA,SEPARATED,LIST
 		                list of tags to assign to the PR
 				Defaults to none.
 
@@ -68,7 +68,7 @@ while [ $# -gt 0 ]; do
 	--skip-pr-check)
 		SKIP_PR_CHECK="true"
 		;;
-	--pr-tags
+	--pr-labels
 		shift
 		PR_LABELS=$1
 	*)
