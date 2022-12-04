@@ -24,7 +24,9 @@ Usage: gh combine-prs --query "QUERY"
 		--skip-pr-check
 				if set, will combine matching PRs even if they are not passing checks.
 				Defaults to false when not specified
-
+		--non-interactive
+				if set, will not prompt for confirmation before combining PRs. Warning: Can be destructive as we force push to achieve this.
+				Defaults to false when not specified
 EOF
 }
 
@@ -42,6 +44,7 @@ LIMIT=50
 QUERY=""
 SKIP_PR_CHECK="false"
 SELECTED_PR_NUMBERS=
+NON_INTERACTIVE="false"
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-h|--help)
@@ -63,6 +66,9 @@ while [ $# -gt 0 ]; do
 	--skip-pr-check)
 		SKIP_PR_CHECK="true"
 		;;
+  --non-interactive)
+    NON_INTERACTIVE="true"
+    ;;
 	*)
 		help >&2
 		exit 1
@@ -107,8 +113,11 @@ if [[ -n "${SELECTED_PR_NUMBERS}" ]]; then
 	echo -e "\nOnly the following PRs will be selected: $SELECTED_PR_NUMBERS"
 	JQ_FILTER="$JQ_FILTER | select(.number == ($SELECTED_PR_NUMBERS))"
 fi
-echo "Press any key to continue or escape to abort"
-confirm
+
+if [[ "${NON_INTERACTIVE}" == "false" ]]; then
+  echo "Press any key to continue or escape to abort"
+  confirm
+fi
 
 git fetch
 git checkout "${DEFAULT_BRANCH}"
@@ -146,8 +155,17 @@ done
 echo -e "Preview of PR:\n\n"
 cat $BODY_FILE
 
-echo -e "\n\nFinished merging - press any key to create PR or escape to abort"
-confirm
+if [[ "${NON_INTERACTIVE}" == "false" ]]; then
+  echo -e "\n\nFinished merging - press any key to create PR or escape to abort"
+  confirm
+fi
 
 echo "Creating PR"
-gh pr create --title "Combined dependencies PR" --body-file $BODY_FILE --label dependencies
+
+# push origin so that gh pr create can be non-interactive
+if [[ "${NON_INTERACTIVE}" == "false" ]]; then
+  gh pr create --title "Combined dependencies PR" --body-file $BODY_FILE --label dependencies
+else
+  git push origin "$COMBINED_BRANCH" --force
+  gh pr create --fill --title "Combined dependencies PR" --body-file $BODY_FILE --label dependencies
+fi
