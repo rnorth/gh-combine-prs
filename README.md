@@ -23,7 +23,7 @@ Prerequisites:
 To install this extension:
 
 ```
-gh extension install rnorth/gh-combine-prs
+gh extension install tkreiner/gh-combine-prs
 ```
 
 ## Usage
